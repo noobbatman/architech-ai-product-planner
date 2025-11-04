@@ -1,45 +1,83 @@
 import os
 import json
-from typing import Tuple
+from typing import Tuple, List, Dict, Any
 from crewai import Agent, Task, Crew, Process
-from core.config import settings  # <-- The missing piece
+from core.config import settings
+from pydantic import BaseModel, Field
 
 # --- LLM CONFIGURATION ---
-# Set the API key in the environment so CrewAI can find it
 os.environ["GOOGLE_API_KEY"] = settings.GEMINI_API_KEY
-# Defensively remove any stray OpenAI keys
 os.environ.pop("OPENAI_API_KEY", None)
-
-# --- YOUR BRILLIANT SOLUTION ---
-# This is the simplest, most stable way to define the LLM for CrewAI
 google_llm = "gemini/gemini-2.5-flash" 
 
+# --- ============================ ---
+# --- PYDANTIC "DATA CONTRACTS" ---
+# --- ============================ ---
+
+# --- 1. Blueprint Crew Models ---
+
+class BlueprintUserStory(BaseModel):
+    """Defines the structure for a single user story from the blueprint crew."""
+    id: str = Field(description="A unique ID for the user story, e.g., 'US001'.")
+    name: str = Field(description="The concise title of the user story.")
+    description: str = Field(description="The full user story text in 'As a user...' format.")
+
+class BlueprintOutput(BaseModel):
+    """Defines the final JSON output structure for the blueprint crew."""
+    themes: List[str] = Field(description="A list of 3-5 strategic product themes.")
+    user_stories: List[BlueprintUserStory] = Field(description="The initial list of user stories based on the themes.")
+
+# --- 2. Adversarial Crew Models ---
+
+class AdversarialUserStory(BaseModel):
+    """
+    Defines the structure for a single *stress-tested* user story.
+    """
+    id: str = Field(description="The original user story ID, e.g., 'US001'.")
+    name: str = Field(description="The original title/name of the user story.")
+    original_description: str = Field(description="The original user story description.")
+    risk_considerations: str = Field(description="A detailed paragraph summarizing all identified risks and mitigation strategies for *this* story.")
+    impacted_market_shocks: List[str] = Field(description="List of Market Shock IDs that impact this story.")
+    impacted_technical_risks: List[str] = Field(description="List of Technical Risk IDs that impact this story.")
+
+class AdversarialOutput(BaseModel):
+    """Defines the final JSON output structure for the adversarial crew."""
+    stressed_plan: List[AdversarialUserStory] = Field(description="The complete, final, battle-hardened list of user stories, formatted as AdversarialUserStory objects.")
+    premortem_report: Dict[str, Any] = Field(description="A dictionary-based report of the full adversarial analysis, its findings, and key risks.")
 
 
-# --- HELPER FUNCTION ---
-def parse_ai_json_output(raw_output: str) -> dict:
+def _clean_json_output(raw_output: str) -> str:
     """
-    Cleans and parses the AI's string output, returning a valid dictionary.
-    Handles code fences like json ... 
+    Helper function to clean the raw JSON output from a CrewAI task.
+    It removes markdown code fences and extracts the JSON object or array.
     """
-    try:
-        if "json" in raw_output:
-            raw_output = raw_output.split("json")[1].split("```")[0]
-        return json.loads(raw_output.strip())
-    except Exception as e:
-        print(f"ERROR: Failed to parse AI output. Output was: {raw_output}")
-        raise ValueError(f"AI returned invalid JSON: {e}")
+    # Check if the output contains the JSON markdown fences
+    if "```json" in raw_output:
+        # Strip the fences and any leading/trailing whitespace
+        start_index = raw_output.find("```json") + 7
+        end_index = raw_output.rfind("```")
+        if end_index > start_index:
+            json_part = raw_output[start_index:end_index].strip()
+            try:
+                # Validate and re-format the JSON to fix minor syntax errors
+                loaded_json = json.loads(json_part)
+                return json.dumps(loaded_json)
+            except json.JSONDecodeError:
+                # If it's not valid JSON, return the cleaned part and let pydantic handle it
+                return json_part
+    
+    # If the fences are not present, return the original string
+    return raw_output
 
 
 # --- ============================ ---
 # --- 1. BLUEPRINT CREW (TASK 1) ---
 # --- ============================ ---
-def run_blueprint_crew(product_idea: str) -> dict:
+def run_blueprint_crew(product_idea: str) -> BlueprintOutput:
     """
     Runs the initial "Blueprint Crew" to turn a product idea into a developer-ready plan.
     """
-
-    # --- AGENTS ---
+    # (Agent definitions are unchanged)
     persona_agent = Agent(
         role="Lead Market Research and Persona Analyst",
         goal=f"Simulate a 1000-person focus group for '{product_idea}'",
@@ -48,7 +86,6 @@ def run_blueprint_crew(product_idea: str) -> dict:
         verbose=True,
         allow_delegation=False,
     )
-
     analyst_agent = Agent(
         role="Senior Product Analyst and Theme Synthesizer",
         goal="Summarize focus group insights into 3–5 strategic product themes.",
@@ -57,7 +94,6 @@ def run_blueprint_crew(product_idea: str) -> dict:
         verbose=True,
         allow_delegation=False,
     )
-
     pm_agent = Agent(
         role="Agile Product Manager and User Story Writer",
         goal="Create a developer-ready backlog from the identified product themes.",
@@ -67,29 +103,42 @@ def run_blueprint_crew(product_idea: str) -> dict:
         allow_delegation=False,
     )
 
-    # --- TASKS ---
+    # (Task definitions are unchanged)
     task_1_feedback = Task(
         description=f"Simulate a focus group for '{product_idea}' and summarize insights.",
         agent=persona_agent,
         expected_output="A multi-paragraph market insights report."
     )
-
     task_2_themes = Task(
         description="From the focus group report, extract and rank the 3–5 most critical product themes.",
         agent=analyst_agent,
         context=[task_1_feedback],
         expected_output="A numbered list of 3–5 ranked product themes."
     )
-
     task_3_stories = Task(
         description="""From the prioritized themes, generate a backlog of developer-ready user stories.
-        The final output MUST be a single, valid JSON object.""",
+        The final output MUST be a single, valid JSON object that conforms to the 'BlueprintOutput' schema.
+
+        The JSON schema for BlueprintOutput is:
+        {{
+            "themes": ["theme1", "theme2", ...],
+            "user_stories": [
+                {{
+                    "id": "US001",
+                    "name": "User Story Name",
+                    "description": "As a user, I want to..."
+                }},
+                ...
+            ]
+        }}
+        """,
         agent=pm_agent,
         context=[task_2_themes],
-        expected_output="A JSON object with 'themes' and 'user_stories'."
+        expected_output="A JSON object conforming to the 'BlueprintOutput' schema.",
+        output_model=BlueprintOutput
     )
 
-    # --- CREW ---
+    # (Crew definition is unchanged)
     blueprint_crew = Crew(
         agents=[persona_agent, analyst_agent, pm_agent],
         tasks=[task_1_feedback, task_2_themes, task_3_stories],
@@ -102,19 +151,23 @@ def run_blueprint_crew(product_idea: str) -> dict:
     crew_result = blueprint_crew.kickoff()
     print(f"--- BLUEPRINT CREW COMPLETE ---")
 
-    return parse_ai_json_output(crew_result.raw)
+    # --- THIS IS THE CORRECT FIX ---
+    # The raw output from the last task is a JSON string that we parse.
+    raw_output = crew_result.tasks_output[-1].raw
+    cleaned_output = _clean_json_output(raw_output)
+    return BlueprintOutput.model_validate_json(cleaned_output)
 
 
 # --- ================================== ---
 # --- 2. ADVERSARIAL CREW (TASK 2) ---
 # --- ================================== ---
-def run_adversarial_crew(initial_plan: dict) -> Tuple[dict, str]:
+def run_adversarial_crew(initial_plan: BlueprintOutput) -> Tuple[List[AdversarialUserStory], Dict[str, Any]]:
     """
     Stress-test a product plan under simulated market and technical risks.
     """
-    plan_str = json.dumps(initial_plan, indent=2)
+    plan_str = initial_plan.model_dump_json(indent=2)
 
-    # --- AGENTS ---
+    # (Agent definitions are unchanged)
     market_forecaster = Agent(
         role="Adversarial Market Forecaster",
         goal="Generate 5 realistic market shocks that could threaten this product.",
@@ -123,7 +176,6 @@ def run_adversarial_crew(initial_plan: dict) -> Tuple[dict, str]:
         verbose=True,
         allow_delegation=False,
     )
-
     cto_agent = Agent(
         role="Adversarial CTO",
         goal="Identify 5 major internal technical risks or scalability issues.",
@@ -132,7 +184,6 @@ def run_adversarial_crew(initial_plan: dict) -> Tuple[dict, str]:
         verbose=True,
         allow_delegation=False,
     )
-
     adaptive_pm = Agent(
         role="Adaptive Crisis Manager",
         goal="Integrate risks into a revised, resilient product plan.",
@@ -142,28 +193,49 @@ def run_adversarial_crew(initial_plan: dict) -> Tuple[dict, str]:
         allow_delegation=False,
     )
 
-    # --- TASKS ---
+    # (Task definitions are unchanged)
     task_1_market_shocks = Task(
         description=f"Analyze the plan: {plan_str}\nList 5 possible market shocks.",
         agent=market_forecaster,
         expected_output="List of 5 market shocks."
     )
-
     task_2_tech_risks = Task(
         description=f"Analyze the plan: {plan_str}\nList 5 major technical risks.",
         agent=cto_agent,
         expected_output="List of 5 technical risks."
     )
-
     task_3_adaptive_plan = Task(
         description="""Using all insights, create a 'battle-hardened' plan.
         The plan must include the original user stories, but with new fields or modified descriptions to reflect the identified risks.
-        Output MUST be a valid JSON object with 'stressed_plan' and 'premortem_report'.""",
+        Your final output *must* conform to the 'AdversarialOutput' schema provided.
+
+        The JSON schema for AdversarialOutput is:
+        {{
+            "stressed_plan": [
+                {{
+                    "id": "US001",
+                    "name": "Original User Story Name",
+                    "original_description": "As a user, I want to...",
+                    "risk_considerations": "Detailed summary of risks and mitigations.",
+                    "impacted_market_shocks": ["shock_id_1", ...],
+                    "impacted_technical_risks": ["risk_id_1", ...]
+                }},
+                ...
+            ],
+            "premortem_report": {{
+                "key_findings": "...",
+                "risk_summary": "...",
+                ...
+            }}
+        }}
+        """,
         agent=adaptive_pm,
         context=[task_1_market_shocks, task_2_tech_risks],
-        expected_output="A JSON object with 'stressed_plan' (which must contain the original 'user_stories' with added risk analysis) and 'premortem_report'."
+        expected_output="A JSON object conforming to the 'AdversarialOutput' schema.",
+        output_model=AdversarialOutput
     )
 
+    # (Crew definition is unchanged)
     adversarial_crew = Crew(
         agents=[market_forecaster, cto_agent, adaptive_pm],
         tasks=[task_1_market_shocks, task_2_tech_risks, task_3_adaptive_plan],
@@ -176,5 +248,11 @@ def run_adversarial_crew(initial_plan: dict) -> Tuple[dict, str]:
     crew_result = adversarial_crew.kickoff()
     print("--- ADVERSARIAL CREW COMPLETE ---")
 
-    result = parse_ai_json_output(crew_result.raw)
-    return result.get("stressed_plan", {}), result.get("premortem_report", "# No report found")
+    # --- THIS IS THE CORRECT FIX ---
+    # The raw output from the last task is a JSON string that we parse.
+    raw_output = crew_result.tasks_output[-1].raw
+    cleaned_output = _clean_json_output(raw_output)
+    final_output = AdversarialOutput.model_validate_json(cleaned_output)
+    
+    # Then we return the clean, structured data
+    return final_output.stressed_plan, final_output.premortem_report
