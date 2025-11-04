@@ -1,0 +1,28 @@
+# --- Web Server ---
+fastapi
+uvicorn[standard] # The ASGI server to run FastAPI
+
+# --- Database & ORM ---
+sqlalchemy
+psycopg2-binary   # PostgreSQL driver
+supabase          # Supabase client (for auth & convenience)
+alembic           # For database migrations (essential for full scale)
+
+# --- AI Stack ---
+crewai
+google-generativeai # The Gemini 2.5 Pro API client
+langchain-google-genai
+# --- Task Queue ---
+celery
+redis             # The broker for Celery
+
+# --- Configuration & Utilities ---
+pydantic-settings # For managing environment variables
+
+py-trello         # Trello API client
+jira-python        # Jira API client
+
+gevent            # For asynchronous task execution with Celery
+
+litellm           # For local LLM inference
+crewai[google-genai]
