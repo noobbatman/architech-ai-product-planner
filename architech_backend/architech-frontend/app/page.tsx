@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
+
 // --- TYPE DEFINITIONS ---
 interface ProjectStatus {
   project_id: string;
@@ -20,56 +21,107 @@ interface ProjectListItem {
   frontend_summary: string | null;
 }
 
+// --- STYLES ---
+// We define our styles as JavaScript objects
+const styles = {
+  header: {
+    fontSize: '3.75rem',
+    fontWeight: '700',
+    textAlign: 'center',
+    lineHeight: 1.2,
+  } as React.CSSProperties,
+  headerSpan: {
+    color: '#3b82f6', // Blue color
+  },
+  subtitle: {
+    fontSize: '1.25rem',
+    color: '#9ca3af', // Gray color
+    textAlign: 'center',
+    marginTop: '1rem',
+    marginBottom: '3rem',
+  },
+  textarea: (isLoading: boolean): React.CSSProperties => ({
+    width: '100%',
+    padding: '1rem',
+    fontSize: '1rem',
+    color: '#ffffff',
+    backgroundColor: '#1f2937', // Darker gray
+    border: '1px solid #374151',
+    borderRadius: '0.5rem',
+    boxShadow: 'inset 0 2px 4px 0 rgb(0 0 0 / 0.05)',
+    outline: 'none',
+    opacity: isLoading ? 0.7 : 1,
+  }),
+  button: (isLoading: boolean, hasIdea: boolean): React.CSSProperties => ({
+    width: '100%',
+    marginTop: '1rem',
+    padding: '1rem',
+    fontSize: '1.125rem',
+    fontWeight: '700',
+    color: '#ffffff',
+    backgroundColor: isLoading || !hasIdea ? '#4b5563' : '#2563eb',
+    borderRadius: '0.5rem',
+    boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+    cursor: isLoading || !hasIdea ? 'not-allowed' : 'pointer',
+    border: 'none',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    opacity: isLoading || !hasIdea ? 0.6 : 1,
+  }),
+  // ... (Other styles defined below)
+};
+
+
 // --- COMPONENTS ---
 function Spinner() {
-  return (
-    <svg
-      className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-    >
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-    </svg>
-  );
+  return <div className="spinner"></div>; // Uses the class from globals.css
 }
 
 function ProjectCard({ project }: { project: ProjectListItem }) {
   const getStatusColor = () => {
     switch (project.status) {
-      case 'COMPLETE':
-        return 'border-green-500';
-      case 'FAILED':
-        return 'border-red-500';
-      default:
-        return 'border-yellow-500';
+      case 'COMPLETE': return '#22c55e'; // Green
+      case 'FAILED': return '#ef4444'; // Red
+      default: return '#eab308'; // Yellow
     }
   };
 
+  const cardStyle: React.CSSProperties = {
+    padding: '1rem',
+    backgroundColor: '#1f2937', // Dark gray
+    borderRadius: '0.5rem',
+    borderLeft: `4px solid ${getStatusColor()}`,
+    boxShadow: '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)',
+  };
+
   return (
-    <div className={`p-4 bg-gray-800 rounded-lg border-l-4 ${getStatusColor()} shadow-md`}>
-      <div className="flex justify-between items-center">
-        <p className="text-sm text-gray-400">
+    <div style={cardStyle}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <p style={{ fontSize: '0.875rem', color: '#9ca3af' }}>
           {new Date(project.created_at).toLocaleString()}
         </p>
-        <span className={`px-3 py-1 text-xs font-bold rounded-full ${
-          project.status === 'COMPLETE' ? 'bg-green-700 text-green-100' :
-          project.status === 'FAILED' ? 'bg-red-700 text-red-100' :
-          'bg-yellow-700 text-yellow-100 animate-pulse'
-        }`}>
+        <span style={{
+          padding: '0.25rem 0.75rem',
+          fontSize: '0.75rem',
+          fontWeight: '700',
+          borderRadius: '9999px',
+          color: '#f0fdf4',
+          backgroundColor: project.status === 'COMPLETE' ? '#166534' : project.status === 'FAILED' ? '#991b1b' : '#a16207',
+        }}>
           {project.status}
         </span>
       </div>
-      <h3 className="text-lg font-semibold mt-2 truncate">{project.initial_idea}</h3>
+      <h3 style={{ fontSize: '1.125rem', fontWeight: '600', marginTop: '0.5rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {project.initial_idea}
+      </h3>
       
-      {/* Display the non-technical summary here */}
       {project.status === 'COMPLETE' && project.frontend_summary && (
-      <div className="markdown-summary mt-2 text-gray-300 text-sm leading-relaxed">
-        <ReactMarkdown>
-          {project.frontend_summary}
-        </ReactMarkdown>
-      </div>
+        <div className="markdown-summary" style={{ marginTop: '0.5rem', color: '#d1d5db', fontSize: '0.875rem', lineHeight: '1.625' }}>
+          <ReactMarkdown>
+            {project.frontend_summary}
+          </ReactMarkdown>
+        </div>
       )}
 
       {project.status === 'COMPLETE' && project.trello_board_url && (
@@ -77,7 +129,7 @@ function ProjectCard({ project }: { project: ProjectListItem }) {
           href={project.trello_board_url}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-blue-400 hover:underline mt-2 inline-block font-medium text-sm"
+          style={{ color: '#60a5fa', textDecoration: 'underline', marginTop: '0.5rem', display: 'inline-block', fontWeight: '500', fontSize: '0.875rem' }}
         >
           View Full Technical Plan (Trello)
         </a>
@@ -86,10 +138,8 @@ function ProjectCard({ project }: { project: ProjectListItem }) {
   );
 }
 
-
 // --- MAIN PAGE ---
 export default function HomePage() {
-  // --- State Management ---
   const [idea, setIdea] = useState('');
   const [pollingId, setPollingId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -100,14 +150,12 @@ export default function HomePage() {
   const [isListLoading, setIsListLoading] = useState(true);
   const [submittedIdea, setSubmittedIdea] = useState('');
 
-  // API endpoint is local on Windows
   const API_URL = 'http://127.0.0.1:8000';
 
-  // --- DATA FETCHING ---
   const fetchProjects = async () => {
     setIsListLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/v1/projects`); // Correct endpoint without slash
+      const response = await fetch(`${API_URL}/api/v1/projects`);
       if (!response.ok) {
         throw new Error('Failed to fetch project history');
       }
@@ -119,7 +167,6 @@ export default function HomePage() {
     setIsListLoading(false);
   };
 
-  // Initial load and Polling Effect
   useEffect(() => {
     fetchProjects(); 
     
@@ -133,65 +180,42 @@ export default function HomePage() {
         const data: ProjectStatus = await response.json();
         setStatusMessage(data.message);
 
-        if (data.status === 'COMPLETE') {
-          setIsLoading(false);
-          setFinalResult(data);
-          setPollingId(null);
-          clearInterval(intervalId);
-          
-          // --- FIX: Use a unique key helper and filter for duplicates ---
-          setProjects(prevProjects => {
-              const newProject: ProjectListItem = {
-                  project_id: data.project_id,
-                  initial_idea: submittedIdea,
-                  status: 'COMPLETE',
-                  trello_board_url: data.trello_board_url,
-                  created_at: new Date().toISOString(),
-                  frontend_summary: data.frontend_summary,
-              } as ProjectListItem;
-
-              // Filter out the current project if it already exists in the list
-              const filteredProjects = prevProjects.filter(p => p.project_id !== data.project_id);
-              
-              // Return the new project at the top
-              return [newProject, ...filteredProjects];
-          });
-          setSubmittedIdea('');
-          
-        } else if (data.status === 'FAILED') {
+        if (data.status === 'COMPLETE' || data.status === 'FAILED') {
           setIsLoading(false);
-          setError(data.message || 'The job failed.');
           setPollingId(null);
           clearInterval(intervalId);
+          setSubmittedIdea(''); 
           
-          // FIX 2: Manually add failed project to state
+          if (data.status === 'COMPLETE') {
+            setFinalResult(data);
+          } else {
+            setError(data.message || 'The job failed.');
+          }
+
+          // Manually add the new project to the list state
           setProjects(prevProjects => [
             {
               project_id: data.project_id,
               initial_idea: submittedIdea,
-              status: 'FAILED',
-              trello_board_url: null,
+              status: data.status,
+              trello_board_url: data.trello_board_url,
               created_at: new Date().toISOString(),
               frontend_summary: data.frontend_summary,
             } as ProjectListItem,
-            ...prevProjects
+            ...prevProjects.filter(p => p.project_id !== data.project_id)
           ]);
-          setSubmittedIdea(''); 
         }
-        
       } catch (err) {
         setIsLoading(false);
-        setError(err instanceof Error ? err.message : 'An unknown error occurred during polling');
+        setError(err instanceof Error ? err.message : 'An unknown error occurred');
         setPollingId(null);
         clearInterval(intervalId);
       }
     }, 3000);
 
     return () => clearInterval(intervalId);
-
   }, [pollingId, isLoading, submittedIdea]);
 
-  // --- Form Submission Handler ---
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isLoading || !idea) return;
@@ -220,38 +244,38 @@ export default function HomePage() {
       setIdea(''); 
       
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unknown error occurred during submission');
+      setError(err instanceof Error ? err.message : 'An unknown error occurred');
       setIsLoading(false);
     }
   };
 
   // --- RENDER ---
   return (
-    <main className="flex min-h-screen flex-col items-center p-12 md:p-24 bg-gray-900">
-      <div className="w-full max-w-3xl">
+    <main>
+      <div className="container">
         
         {/* Header */}
-        <h1 className="text-5xl md:text-6xl font-bold text-center">
-          Archi<span className="text-blue-500">TECH</span>
+        <h1 style={styles.header}>
+          Archi<span style={styles.headerSpan}>TECH</span>
         </h1>
-        <p className="text-lg md:text-xl text-gray-400 text-center mt-4 mb-12">
+        <p style={styles.subtitle}>
           Input the core idea. Receive the executive summary and developer backlog.
         </p>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="w-full">
+        <form onSubmit={handleSubmit} style={{ width: '100%' }}>
           <textarea
             value={idea}
             onChange={(e) => setIdea(e.target.value)}
             placeholder="e.g., An app that helps people find local dog walkers..."
-            className="w-full p-4 text-md text-white bg-gray-800 border border-gray-700 rounded-lg shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+            style={styles.textarea(isLoading)}
             rows={5}
             disabled={isLoading}
           />
           <button
             type="submit"
             disabled={isLoading || !idea}
-            className="w-full mt-4 p-4 text-lg font-bold bg-blue-600 rounded-lg shadow-lg hover:bg-blue-700 transition-all disabled:bg-gray-700 disabled:text-gray-400 disabled:cursor-not-allowed flex items-center justify-center"
+            style={styles.button(isLoading, !!idea)}
           >
             {isLoading ? (
               <>
@@ -265,29 +289,30 @@ export default function HomePage() {
         </form>
 
         {/* --- Output Area (New Results) --- */}
-        <div className="mt-8">
+        <div style={{ marginTop: '2rem' }}>
           {error && (
-            <div className="mt-8 p-4 bg-red-900 border border-red-700 text-red-100 rounded-lg w-full">
-              <h3 className="font-bold">Error</h3>
+            <div style={{ marginTop: '2rem', padding: '1rem', backgroundColor: '#7f1d1d', border: '1px solid #991b1b', color: '#fecaca', borderRadius: '0.5rem' }}>
+              <h3 style={{ fontWeight: '700' }}>Error</h3>
               <p>{error}</p>
             </div>
           )}
 
           {finalResult && (
-  <div className="mt-8 p-6 bg-green-900 border border-green-700 text-green-100 rounded-lg w-full shadow-xl">
-    <h3 className="text-2xl font-bold">✅ Generation Complete</h3>
+            <div style={{ marginTop: '2rem', padding: '1.5rem', backgroundColor: '#14532d', border: '1px solid #166534', color: '#dcfce7', borderRadius: '0.5rem' }}>
+              <h3 style={{ fontSize: '1.5rem', fontWeight: '700' }}>✅ Generation Complete</h3>
+              
+              <h4 style={{ marginTop: '1rem', fontSize: '1.125rem', fontWeight: '600', color: 'white' }}>Executive Summary:</h4>
+              <div className="markdown-summary" style={{ marginTop: '0.5rem', lineHeight: '1.625', fontStyle: 'italic' }}>
+                <ReactMarkdown>
+                  {finalResult.frontend_summary || "Summary not available for this project."}
+                </ReactMarkdown>
+              </div>
 
-    <div className="markdown-summary mt-2 text-md leading-relaxed italic">
-      <ReactMarkdown>
-        {finalResult.frontend_summary || "Summary not available for this project."}
-      </ReactMarkdown>
-    </div>
-
-    <a
-      href={finalResult.trello_board_url!}
+              <a
+                href={finalResult.trello_board_url!}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-6 inline-block px-6 py-3 bg-white text-green-900 font-bold rounded-lg shadow-lg hover:opacity-90 transition-all"
+                style={{ marginTop: '1.5rem', display: 'inline-block', padding: '0.75rem 1.5rem', backgroundColor: 'white', color: '#14532d', fontWeight: '700', borderRadius: '0.5rem', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', textDecoration: 'none' }}
               >
                 View Full Technical Backlog (Trello)
               </a>
@@ -296,16 +321,16 @@ export default function HomePage() {
         </div>
 
         {/* --- Project History --- */}
-        <div className="mt-24 w-full">
-          <h2 className="text-3xl font-bold text-white mb-6">Project History</h2>
-          {isListLoading && <p className="text-gray-400">Loading projects...</p>}
+        <div style={{ marginTop: '6rem', width: '100%' }}>
+          <h2 style={{ fontSize: '1.875rem', fontWeight: '700', color: 'white', marginBottom: '1.5rem' }}>Project History</h2>
+          {isListLoading && <p style={{ color: '#9ca3af' }}>Loading projects...</p>}
           
           {!isListLoading && projects.length === 0 && (
-            <p className="text-gray-400">No projects found. Generate one to see it here!</p>
+            <p style={{ color: '#9ca3af' }}>No projects found. Generate one to see it here!</p>
           )}
 
           {!isListLoading && projects.length > 0 && (
-            <div className="flex flex-col gap-4">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               {projects.map((project) => (
                 <ProjectCard key={project.project_id} project={project} />
               ))}
