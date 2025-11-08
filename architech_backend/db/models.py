@@ -31,6 +31,6 @@ class Project(Base):
     # --- Stage 2 Output (Simulation) ---
     stressed_plan_json = Column(JSONB, nullable=True)
     premortem_report = Column(Text, nullable=True)
-
+    frontend_summary = Column(Text, nullable=True)
     # --- Final Output ---
     trello_board_url = Column(String, nullable=True)

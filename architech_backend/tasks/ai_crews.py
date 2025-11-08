@@ -256,3 +256,62 @@ def run_adversarial_crew(initial_plan: BlueprintOutput) -> Tuple[List[Adversaria
     
     # Then we return the clean, structured data
     return final_output.stressed_plan, final_output.premortem_report
+
+def run_summary_agent(stressed_plan: dict, premortem_report: Dict[str, Any]) -> str:
+    """
+    Runs a single agent to create a non-technical summary of the plan.
+    """
+    print("--- Starting SUMMARY AGENT ---")
+    
+    # Get the LLM string
+    google_llm = "gemini/gemini-2.5-flash" # Use the stable, high-capacity model
+    
+    # NOTE: We are converting the report dictionary to a JSON string 
+    premortem_str = json.dumps(premortem_report, indent=2)
+
+    # Define the agent
+    summary_agent = Agent(
+        role="Lead Developer / Engineering Manager",
+        goal="Read a technical backlog (a list of user stories) and a risk report, then write a concise, plain-English summary for a non-technical stakeholder.",
+        backstory="You are an expert at communicating complex ideas to simple, powerful language. You avoid all technical jargon and focus on the 'what' and 'why'.",
+        verbose=True,
+        llm=google_llm,
+        allow_delegation=False
+    )
+
+    # Define the task
+    summary_task = Task(
+        description=f"""
+        You are a Lead Product Manager writing a summary for a stakeholder.
+        
+        Here is the AI-generated technical backlog:
+        {json.dumps(stressed_plan, indent=2)}
+
+        Here is the AI-generated risk analysis (premortem):
+        {premortem_str}
+
+        Your task: Write a simple, non-technical summary of this *plan* using **Markdown formatting**.
+
+        Your summary MUST include:
+        1.  A "## 💡 Key Features" section, followed by a bulleted list of the 5-6 main work categories.
+        2.  A "## ⚠️ Top Identified Risk" section, explaining 2-3 of the biggest risks identified from the premortem in plain English.
+        3.  A "## 🚀 First Steps" section, identifying the most important feature to build first.
+
+        Make sure to use **bold text** for emphasis.
+        """,
+        agent=summary_agent,
+        expected_output="A well-formatted Markdown string with headings, bullet points, and bold text."
+    )
+
+    # Run the crew (of one)
+    summary_crew = Crew(
+        agents=[summary_agent],
+        tasks=[summary_task],
+        process=Process.sequential,
+        verbose=True,
+        llm=google_llm,
+    )
+    crew_result = summary_crew.kickoff()
+    
+    print("--- SUMMARY AGENT COMPLETE ---")
+    return crew_result.raw
