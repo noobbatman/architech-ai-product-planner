@@ -2,9 +2,6 @@
 
 > Turn a one-sentence product idea into a fully-populated, risk-adjusted backlog in under 60 seconds across Jira, Trello, Slack, and Notion.
 
-## Demo
-
-*(90-second demo video coming soon)*
 
 ## The Problem
 
@@ -29,9 +26,6 @@ graph TD
     H --> L[Notion]
 ```
 
-## Live Demo
-
-[Live API Demo (Railway Free Tier) - Coming Soon](#)
 
 ## Results & Metrics
 
