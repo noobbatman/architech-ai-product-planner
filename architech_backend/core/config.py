@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     SUPABASE_KEY: str
     TRELLO_API_KEY: str = "YOUR_TRELLO_API_KEY"
     TRELLO_API_TOKEN: str = "YOUR_TRELLO_API_TOKEN"
+    APP_API_KEY: str = "" # Master API key for endpoints
 
     class Config:
         env_file = ".env"

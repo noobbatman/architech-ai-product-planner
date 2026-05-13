@@ -10,6 +10,8 @@ from db.session import get_db
 from db.models import Project, ProjectStatus
 from api.v1 import schemas
 from tasks.main_tasks import task_generate_blueprint, task_run_simulation
+from core.security import get_api_key
+from core.rate_limit import limiter
 
 router = APIRouter()
 
@@ -68,9 +70,12 @@ def get_all_projects(db: Session = Depends(get_db)):
 
 
 @router.post("/generate", response_model=schemas.ProjectStatusResponse, status_code=202)
+@limiter.limit("5/minute")
 def create_project(
     project_in: schemas.ProjectCreate,
-    db: Session = Depends(get_db)
+    request: Request,
+    db: Session = Depends(get_db),
+    api_key: str = Depends(get_api_key)
 ):
     new_project = Project(
         initial_idea=project_in.initial_idea
@@ -127,9 +132,12 @@ class TriggerResponse(schemas.BaseModel):
     job_id: UUID
 
 @router.post("/trigger", response_model=TriggerResponse, status_code=202)
+@limiter.limit("5/minute")
 def trigger_project(
     project_in: schemas.ProjectCreate,
-    db: Session = Depends(get_db)
+    request: Request,
+    db: Session = Depends(get_db),
+    api_key: str = Depends(get_api_key)
 ):
     """
     Zapier input trigger: accepts an idea + webhook URL, runs the pipeline async, returns a job ID.

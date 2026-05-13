@@ -6,7 +6,7 @@ import datetime
 
 # --- Input ---
 class ProjectCreate(BaseModel):
-    initial_idea: str = Field(default=..., min_length=10, example="An app to find local dog walkers")
+    initial_idea: str = Field(default=..., min_length=10, max_length=2000, example="An app to find local dog walkers")
     zapier_webhook_url: Optional[str] = Field(default=None, example="https://hooks.zapier.com/hooks/catch/...")
 
 # --- Output Schemas ---

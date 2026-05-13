@@ -9,6 +9,9 @@ from core.config import settings
 # Import the new Summary Agent and the helper functions/classes from ai_crews
 from .ai_crews import run_blueprint_crew, run_adversarial_crew, run_summary_agent, BlueprintOutput
 from .trello_bot import create_trello_board
+from core.logger import setup_logger
+
+logger = setup_logger(__name__)
 
 
 @shared_task(bind=True)
@@ -90,8 +93,8 @@ def task_run_simulation(self, results_from_task_1: tuple):
         TRELLO_API_KEY = settings.TRELLO_API_KEY 
         TRELLO_API_TOKEN = settings.TRELLO_API_TOKEN 
 
-        if TRELLO_API_KEY == "YOUR_TRELLO_API_KEY_HERE":
-            print("--- TRELLO BOT: SKIPPING - API KEY IS A PLACEHOLDER ---")
+        if TRELLO_API_KEY == "YOUR_TRELLO_API_KEY_HERE" or TRELLO_API_KEY == "YOUR_TRELLO_API_KEY" or not TRELLO_API_KEY:
+            logger.info("TRELLO BOT: SKIPPING - API KEY IS A PLACEHOLDER")
             trello_url = "https://trello.com/b/skipped-placeholder"
         else:
             trello_url = create_trello_board(
@@ -122,9 +125,11 @@ def task_run_simulation(self, results_from_task_1: tuple):
                 }
                 response = requests.post(project.zapier_webhook_url, json=payload, timeout=10)
                 response.raise_for_status()
-                print(f"--- ZAPIER WEBHOOK CALLED SUCCESSFULLY: {project.zapier_webhook_url} ---")
-            except Exception as zap_e:
-                print(f"--- ZAPIER WEBHOOK FAILED: {str(zap_e)} ---")
+                logger.info(f"ZAPIER WEBHOOK CALLED SUCCESSFULLY: {project.zapier_webhook_url}")
+            except requests.exceptions.RequestException as zap_e:
+                logger.error(f"ZAPIER WEBHOOK FAILED: {str(zap_e)}. Retrying in 60s...")
+                # Retry webhook delivery
+                raise self.retry(exc=zap_e, countdown=60, max_retries=3)
 
         return project_id
 

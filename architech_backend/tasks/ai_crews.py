@@ -4,6 +4,9 @@ from typing import Tuple, List, Dict, Any
 from crewai import Agent, Task, Crew, Process
 from core.config import settings
 from pydantic import BaseModel, Field
+from core.logger import setup_logger
+
+logger = setup_logger(__name__)
 
 # --- LLM CONFIGURATION ---
 os.environ["ANTHROPIC_API_KEY"] = settings.ANTHROPIC_API_KEY
@@ -117,18 +120,18 @@ def run_blueprint_crew(product_idea: str) -> BlueprintOutput:
         verbose=True,
     )
 
-    print(f"--- Starting BLUEPRINT CREW (Tasks 1 & 2) for '{product_idea}' ---")
+    logger.info(f"Starting BLUEPRINT CREW (Tasks 1 & 2) for '{product_idea}'")
     crew_result = blueprint_crew.kickoff()
-    print(f"--- BLUEPRINT CREW (Tasks 1 & 2) COMPLETE ---")
+    logger.info(f"BLUEPRINT CREW (Tasks 1 & 2) COMPLETE")
 
     # Extract themes list from task 2 output
     raw_themes_output = crew_result.tasks_output[-1].raw
     themes_list = [line.strip() for line in raw_themes_output.split('\n') if line.strip()]
 
-    print(f"--- Starting PM AGENT (Claude Tool Use) ---")
+    logger.info(f"Starting PM AGENT (Claude Tool Use)")
     from core.claude_client import generate_blueprint_with_tools
     tool_output = generate_blueprint_with_tools(product_idea, themes_list)
-    print(f"--- PM AGENT COMPLETE ---")
+    logger.info(f"PM AGENT COMPLETE")
 
     return BlueprintOutput.model_validate(tool_output)
 
@@ -218,9 +221,9 @@ def run_adversarial_crew(initial_plan: BlueprintOutput) -> Tuple[List[Adversaria
         verbose=True,
     )
 
-    print("--- Starting ADVERSARIAL CREW ---")
+    logger.info("Starting ADVERSARIAL CREW")
     crew_result = adversarial_crew.kickoff()
-    print("--- ADVERSARIAL CREW COMPLETE ---")
+    logger.info("ADVERSARIAL CREW COMPLETE")
 
     # --- THIS IS THE CORRECT FIX ---
     # The raw output from the last task is a JSON string that we parse.
@@ -235,7 +238,7 @@ def run_summary_agent(stressed_plan: dict, premortem_report: Dict[str, Any]) -> 
     """
     Runs a single agent to create a non-technical summary of the plan.
     """
-    print("--- Starting SUMMARY AGENT ---")
+    logger.info("Starting SUMMARY AGENT")
     
     # Get the LLM string
     main_llm = "anthropic/claude-3-5-sonnet-20241022" 
@@ -286,5 +289,5 @@ def run_summary_agent(stressed_plan: dict, premortem_report: Dict[str, Any]) -> 
     )
     crew_result = summary_crew.kickoff()
     
-    print("--- SUMMARY AGENT COMPLETE ---")
+    logger.info("SUMMARY AGENT COMPLETE")
     return crew_result.raw
