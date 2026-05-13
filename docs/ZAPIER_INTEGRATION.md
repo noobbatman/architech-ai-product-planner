@@ -30,7 +30,7 @@ Automate your backlog creation straight from a product idea repository in Google
      }
      ```
 
-![Google Sheets Setup](docs/images/zapier_gsheets_setup.png)
+*(Screenshot: Google Sheets Setup)*
 
 ### Step 2: The Output Receiver (Zap 2)
 1. **Trigger:** Choose "Webhooks by Zapier" and select "Catch Hook".
@@ -40,7 +40,7 @@ Automate your backlog creation straight from a product idea repository in Google
    - Map the `Summary` to `user_stories.name`.
    - Map the `Description` to `user_stories.description` + `user_stories.risk_considerations`.
 
-![Jira Setup](docs/images/zapier_jira_setup.png)
+*(Screenshot: Jira Setup)*
 
 ---
 
@@ -53,7 +53,7 @@ Great for design agencies receiving client briefs.
 2. **Action:** Choose "Webhooks by Zapier" and select "POST".
    - Send the Typeform response to ArchiTECH's `/api/v1/trigger` endpoint with Zap 2's Webhook URL.
 
-![Typeform Setup](docs/images/zapier_typeform_setup.png)
+*(Screenshot: Typeform Setup)*
 
 ### Step 2: The Output Receiver (Zap 2)
 1. **Trigger:** "Webhooks by Zapier" (Catch Hook).
@@ -62,4 +62,4 @@ Great for design agencies receiving client briefs.
 3. **Action 2 (Notion):** Choose "Notion" -> "Create Database Item".
    - Save the raw JSON payload to a central "Client Plans" database for internal review.
 
-![Slack Notion Setup](docs/images/zapier_slack_notion_setup.png)
+*(Screenshot: Slack Notion Setup)*

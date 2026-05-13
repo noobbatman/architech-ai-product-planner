@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from celery import chain
@@ -165,6 +165,7 @@ def get_job_status(
 @router.get("/{project_id}/n8n-workflow")
 def export_n8n_workflow(
     project_id: UUID,
+    request: Request,
     db: Session = Depends(get_db)
 ):
     """
@@ -173,6 +174,9 @@ def export_n8n_workflow(
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
+
+    base_url = str(request.base_url).rstrip('/')
+    trigger_url = f"{base_url}/api/v1/trigger"
 
     workflow_json = {
         "name": f"ArchiTECH Auto-Plan: {project.initial_idea[:30]}...",
@@ -190,8 +194,9 @@ def export_n8n_workflow(
             },
             {
                 "parameters": {
+                    "authentication": "headerAuth",
                     "method": "POST",
-                    "url": "https://your-architech-instance.com/api/v1/trigger",
+                    "url": trigger_url,
                     "sendBody": True,
                     "bodyParameters": {
                         "parameters": [
@@ -204,7 +209,13 @@ def export_n8n_workflow(
                 "name": "Call ArchiTECH",
                 "type": "n8n-nodes-base.httpRequest",
                 "typeVersion": 3,
-                "position": [450, 300]
+                "position": [450, 300],
+                "credentials": {
+                    "httpHeaderAuth": {
+                        "id": "YOUR_ARCHITECH_CREDENTIAL_ID",
+                        "name": "Header Auth account"
+                    }
+                }
             },
             {
                 "parameters": {
@@ -215,7 +226,7 @@ def export_n8n_workflow(
                 "name": "Slack Notification",
                 "type": "n8n-nodes-base.slack",
                 "typeVersion": 2,
-                "position": [650, 200]
+                "position": [650, 100]
             },
             {
                 "parameters": {
@@ -231,7 +242,19 @@ def export_n8n_workflow(
                 "name": "Save to Notion",
                 "type": "n8n-nodes-base.notion",
                 "typeVersion": 2,
-                "position": [650, 400]
+                "position": [650, 300]
+            },
+            {
+                "parameters": {
+                    "operation": "create",
+                    "listId": "YOUR_TRELLO_LIST_ID",
+                    "name": "={{$json.body.idea}}",
+                    "description": "=Trello Board: {{$json.body.trello_board_url}}"
+                },
+                "name": "Save to Trello",
+                "type": "n8n-nodes-base.trello",
+                "typeVersion": 1,
+                "position": [650, 500]
             }
         ],
         "connections": {
@@ -242,7 +265,11 @@ def export_n8n_workflow(
             },
             "Call ArchiTECH": {
                 "main": [
-                    [{"node": "Slack Notification", "type": "main", "index": 0}, {"node": "Save to Notion", "type": "main", "index": 0}]
+                    [
+                        {"node": "Slack Notification", "type": "main", "index": 0}, 
+                        {"node": "Save to Notion", "type": "main", "index": 0},
+                        {"node": "Save to Trello", "type": "main", "index": 0}
+                    ]
                 ]
             }
         },
