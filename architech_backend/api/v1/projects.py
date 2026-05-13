@@ -122,3 +122,132 @@ def get_project_status(
         message=message,
         trello_board_url=project.trello_board_url
     )
+
+class TriggerResponse(schemas.BaseModel):
+    job_id: UUID
+
+@router.post("/trigger", response_model=TriggerResponse, status_code=202)
+def trigger_project(
+    project_in: schemas.ProjectCreate,
+    db: Session = Depends(get_db)
+):
+    """
+    Zapier input trigger: accepts an idea + webhook URL, runs the pipeline async, returns a job ID.
+    """
+    new_project = Project(
+        initial_idea=project_in.initial_idea,
+        zapier_webhook_url=project_in.zapier_webhook_url
+    )
+    db.add(new_project)
+    db.commit()
+    db.refresh(new_project)
+
+    generation_chain = chain(
+        task_generate_blueprint.s(str(new_project.id)),
+        task_run_simulation.s()
+    )
+    
+    generation_chain.apply_async()
+
+    return TriggerResponse(job_id=new_project.id)
+
+@router.get("/jobs/{job_id}", response_model=schemas.ProjectStatusResponse)
+def get_job_status(
+    job_id: UUID,
+    db: Session = Depends(get_db)
+):
+    """
+    Zapier polling endpoint to check the status of a triggered job.
+    """
+    # Reuse the existing status logic
+    return get_project_status(job_id, db)
+
+@router.get("/{project_id}/n8n-workflow")
+def export_n8n_workflow(
+    project_id: UUID,
+    db: Session = Depends(get_db)
+):
+    """
+    Generates a valid n8n workflow JSON that recreates the automation.
+    """
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    workflow_json = {
+        "name": f"ArchiTECH Auto-Plan: {project.initial_idea[:30]}...",
+        "nodes": [
+            {
+                "parameters": {
+                    "httpMethod": "POST",
+                    "path": "architech-trigger",
+                    "options": {}
+                },
+                "name": "Webhook Trigger",
+                "type": "n8n-nodes-base.webhook",
+                "typeVersion": 1,
+                "position": [250, 300]
+            },
+            {
+                "parameters": {
+                    "method": "POST",
+                    "url": "https://your-architech-instance.com/api/v1/trigger",
+                    "sendBody": True,
+                    "bodyParameters": {
+                        "parameters": [
+                            {"name": "initial_idea", "value": "={{$json.body.idea}}"},
+                            {"name": "zapier_webhook_url", "value": "={{$execution.resumeUrl}}"}
+                        ]
+                    },
+                    "options": {}
+                },
+                "name": "Call ArchiTECH",
+                "type": "n8n-nodes-base.httpRequest",
+                "typeVersion": 3,
+                "position": [450, 300]
+            },
+            {
+                "parameters": {
+                    "channel": "general",
+                    "text": "=New Product Plan Ready!\nThemes: {{$json.body.themes}}\nTrello Board: {{$json.body.trello_board_url}}",
+                    "otherOptions": {}
+                },
+                "name": "Slack Notification",
+                "type": "n8n-nodes-base.slack",
+                "typeVersion": 2,
+                "position": [650, 200]
+            },
+            {
+                "parameters": {
+                    "operation": "create",
+                    "databaseId": "YOUR_NOTION_DB_ID",
+                    "propertiesUi": {
+                        "propertyValues": [
+                            {"key": "Name|title", "value": "={{$json.body.idea}}"},
+                            {"key": "Trello|url", "value": "={{$json.body.trello_board_url}}"}
+                        ]
+                    }
+                },
+                "name": "Save to Notion",
+                "type": "n8n-nodes-base.notion",
+                "typeVersion": 2,
+                "position": [650, 400]
+            }
+        ],
+        "connections": {
+            "Webhook Trigger": {
+                "main": [
+                    [{"node": "Call ArchiTECH", "type": "main", "index": 0}]
+                ]
+            },
+            "Call ArchiTECH": {
+                "main": [
+                    [{"node": "Slack Notification", "type": "main", "index": 0}, {"node": "Save to Notion", "type": "main", "index": 0}]
+                ]
+            }
+        },
+        "settings": {},
+        "meta": {"templateId": "architech-export-1"}
+    }
+    
+    return workflow_json

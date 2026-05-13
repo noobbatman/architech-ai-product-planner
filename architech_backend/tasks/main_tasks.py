@@ -106,6 +106,26 @@ def task_run_simulation(self, results_from_task_1: tuple):
         project.status = ProjectStatus.COMPLETE
         db.commit()
 
+        # 7. Call Zapier Webhook if provided
+        if project.zapier_webhook_url:
+            import requests
+            try:
+                # Need to parse initial_plan to get themes
+                themes = initial_plan_obj.themes if hasattr(initial_plan_obj, 'themes') else []
+                
+                payload = {
+                    "project_id": str(project.id),
+                    "idea": project.initial_idea,
+                    "themes": themes,
+                    "user_stories": stressed_plan_list_of_dicts,
+                    "trello_board_url": trello_url
+                }
+                response = requests.post(project.zapier_webhook_url, json=payload, timeout=10)
+                response.raise_for_status()
+                print(f"--- ZAPIER WEBHOOK CALLED SUCCESSFULLY: {project.zapier_webhook_url} ---")
+            except Exception as zap_e:
+                print(f"--- ZAPIER WEBHOOK FAILED: {str(zap_e)} ---")
+
         return project_id
 
     except Exception as e:

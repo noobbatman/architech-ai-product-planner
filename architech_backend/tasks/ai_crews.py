@@ -6,9 +6,10 @@ from core.config import settings
 from pydantic import BaseModel, Field
 
 # --- LLM CONFIGURATION ---
-os.environ["GOOGLE_API_KEY"] = settings.GEMINI_API_KEY
+os.environ["ANTHROPIC_API_KEY"] = settings.ANTHROPIC_API_KEY
 os.environ.pop("OPENAI_API_KEY", None)
-google_llm = "gemini/gemini-2.5-flash" 
+os.environ.pop("GOOGLE_API_KEY", None)
+main_llm = "anthropic/claude-3-5-sonnet-20241022"
 
 # --- ============================ ---
 # --- PYDANTIC "DATA CONTRACTS" ---
@@ -82,7 +83,7 @@ def run_blueprint_crew(product_idea: str) -> BlueprintOutput:
         role="Lead Market Research and Persona Analyst",
         goal=f"Simulate a 1000-person focus group for '{product_idea}'",
         backstory="A world-class market researcher skilled in behavioral insights.",
-        llm=google_llm,
+        llm=main_llm,
         verbose=True,
         allow_delegation=False,
     )
@@ -90,15 +91,7 @@ def run_blueprint_crew(product_idea: str) -> BlueprintOutput:
         role="Senior Product Analyst and Theme Synthesizer",
         goal="Summarize focus group insights into 3–5 strategic product themes.",
         backstory="A data-driven product strategist with deep synthesis skills.",
-        llm=google_llm,
-        verbose=True,
-        allow_delegation=False,
-    )
-    pm_agent = Agent(
-        role="Agile Product Manager and User Story Writer",
-        goal="Create a developer-ready backlog from the identified product themes.",
-        backstory="A highly analytical PM skilled at writing precise user stories.",
-        llm=google_llm,
+        llm=main_llm,
         verbose=True,
         allow_delegation=False,
     )
@@ -115,47 +108,29 @@ def run_blueprint_crew(product_idea: str) -> BlueprintOutput:
         context=[task_1_feedback],
         expected_output="A numbered list of 3–5 ranked product themes."
     )
-    task_3_stories = Task(
-        description="""From the prioritized themes, generate a backlog of developer-ready user stories.
-        The final output MUST be a single, valid JSON object that conforms to the 'BlueprintOutput' schema.
 
-        The JSON schema for BlueprintOutput is:
-        {{
-            "themes": ["theme1", "theme2", ...],
-            "user_stories": [
-                {{
-                    "id": "US001",
-                    "name": "User Story Name",
-                    "description": "As a user, I want to..."
-                }},
-                ...
-            ]
-        }}
-        """,
-        agent=pm_agent,
-        context=[task_2_themes],
-        expected_output="A JSON object conforming to the 'BlueprintOutput' schema.",
-        output_model=BlueprintOutput
-    )
-
-    # (Crew definition is unchanged)
+    # (Crew definition is unchanged for first 2 tasks)
     blueprint_crew = Crew(
-        agents=[persona_agent, analyst_agent, pm_agent],
-        tasks=[task_1_feedback, task_2_themes, task_3_stories],
+        agents=[persona_agent, analyst_agent],
+        tasks=[task_1_feedback, task_2_themes],
         process=Process.sequential,
         verbose=True,
-        llm=google_llm,
     )
 
-    print(f"--- Starting BLUEPRINT CREW for '{product_idea}' ---")
+    print(f"--- Starting BLUEPRINT CREW (Tasks 1 & 2) for '{product_idea}' ---")
     crew_result = blueprint_crew.kickoff()
-    print(f"--- BLUEPRINT CREW COMPLETE ---")
+    print(f"--- BLUEPRINT CREW (Tasks 1 & 2) COMPLETE ---")
 
-    # --- THIS IS THE CORRECT FIX ---
-    # The raw output from the last task is a JSON string that we parse.
-    raw_output = crew_result.tasks_output[-1].raw
-    cleaned_output = _clean_json_output(raw_output)
-    return BlueprintOutput.model_validate_json(cleaned_output)
+    # Extract themes list from task 2 output
+    raw_themes_output = crew_result.tasks_output[-1].raw
+    themes_list = [line.strip() for line in raw_themes_output.split('\n') if line.strip()]
+
+    print(f"--- Starting PM AGENT (Claude Tool Use) ---")
+    from core.claude_client import generate_blueprint_with_tools
+    tool_output = generate_blueprint_with_tools(product_idea, themes_list)
+    print(f"--- PM AGENT COMPLETE ---")
+
+    return BlueprintOutput.model_validate(tool_output)
 
 
 # --- ================================== ---
@@ -172,7 +147,7 @@ def run_adversarial_crew(initial_plan: BlueprintOutput) -> Tuple[List[Adversaria
         role="Adversarial Market Forecaster",
         goal="Generate 5 realistic market shocks that could threaten this product.",
         backstory="Expert in geopolitical and economic risk analysis.",
-        llm=google_llm,
+        llm=main_llm,
         verbose=True,
         allow_delegation=False,
     )
@@ -180,7 +155,7 @@ def run_adversarial_crew(initial_plan: BlueprintOutput) -> Tuple[List[Adversaria
         role="Adversarial CTO",
         goal="Identify 5 major internal technical risks or scalability issues.",
         backstory="Highly skeptical technical leader who challenges assumptions.",
-        llm=google_llm,
+        llm=main_llm,
         verbose=True,
         allow_delegation=False,
     )
@@ -188,7 +163,7 @@ def run_adversarial_crew(initial_plan: BlueprintOutput) -> Tuple[List[Adversaria
         role="Adaptive Crisis Manager",
         goal="Integrate risks into a revised, resilient product plan.",
         backstory="Pragmatic PM skilled in risk adaptation and scenario planning.",
-        llm=google_llm,
+        llm=main_llm,
         verbose=True,
         allow_delegation=False,
     )
@@ -241,7 +216,6 @@ def run_adversarial_crew(initial_plan: BlueprintOutput) -> Tuple[List[Adversaria
         tasks=[task_1_market_shocks, task_2_tech_risks, task_3_adaptive_plan],
         process=Process.sequential,
         verbose=True,
-        llm=google_llm,
     )
 
     print("--- Starting ADVERSARIAL CREW ---")
@@ -264,7 +238,7 @@ def run_summary_agent(stressed_plan: dict, premortem_report: Dict[str, Any]) -> 
     print("--- Starting SUMMARY AGENT ---")
     
     # Get the LLM string
-    google_llm = "gemini/gemini-2.5-flash" # Use the stable, high-capacity model
+    main_llm = "anthropic/claude-3-5-sonnet-20241022" 
     
     # NOTE: We are converting the report dictionary to a JSON string 
     premortem_str = json.dumps(premortem_report, indent=2)
@@ -275,7 +249,7 @@ def run_summary_agent(stressed_plan: dict, premortem_report: Dict[str, Any]) -> 
         goal="Read a technical backlog (a list of user stories) and a risk report, then write a concise, plain-English summary for a non-technical stakeholder.",
         backstory="You are an expert at communicating complex ideas to simple, powerful language. You avoid all technical jargon and focus on the 'what' and 'why'.",
         verbose=True,
-        llm=google_llm,
+        llm=main_llm,
         allow_delegation=False
     )
 
@@ -309,7 +283,6 @@ def run_summary_agent(stressed_plan: dict, premortem_report: Dict[str, Any]) -> 
         tasks=[summary_task],
         process=Process.sequential,
         verbose=True,
-        llm=google_llm,
     )
     crew_result = summary_crew.kickoff()
     

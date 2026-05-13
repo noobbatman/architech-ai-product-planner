@@ -20,6 +20,7 @@ class Project(Base):
 
     # --- Input ---
     initial_idea = Column(Text, nullable=False)
+    zapier_webhook_url = Column(String, nullable=True)
 
     # --- Status ---
     status = Column(Enum(ProjectStatus), nullable=False, default=ProjectStatus.PENDING)
