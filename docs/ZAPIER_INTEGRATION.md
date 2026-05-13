@@ -10,6 +10,8 @@ ArchiTECH is designed to be the "Agentic AI Brain" in your existing business wor
 2. **Webhook (Output):** The URL you provide in `zapier_webhook_url` will receive an async POST request when the AI finishes generating the backlog.
    - Payload: `{"project_id": "...", "idea": "...", "themes": [...], "user_stories": [...], "trello_board_url": "..."}`
 
+> **Important:** All ArchiTECH endpoints (except status polling) are secured. You must add a custom header `X-API-Key: <your-key>` to all Zapier requests to ArchiTECH.
+
 ---
 
 ## Example Flow 1: Google Sheets → ArchiTECH → Jira

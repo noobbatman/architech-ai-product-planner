@@ -1,5 +1,6 @@
 from fastapi import Security, HTTPException, status
 from fastapi.security import APIKeyHeader
+import hmac
 from core.config import settings
 
 # Define the API Key header scheme
@@ -14,7 +15,9 @@ def get_api_key(api_key_header: str = Security(api_key_header)) -> str:
         # For production readiness, we strictly require it unless not set (for hackathon ease).
         pass
 
-    if settings.APP_API_KEY and api_key_header == settings.APP_API_KEY:
+    if settings.APP_API_KEY and hmac.compare_digest(
+        (api_key_header or "").encode(), settings.APP_API_KEY.encode()
+    ):
         return api_key_header
         
     raise HTTPException(

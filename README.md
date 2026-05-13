@@ -74,16 +74,12 @@ This was initially a hackathon project where I led the backend and overall syste
 git clone https://github.com/noobbatman/architech-ai-product-planner
 cd architech-ai-product-planner/architech_backend
 
-# Install dependencies
-pip install -r requirements.txt
-
 # Configure environment
 cp .env.example .env
-# Add your keys: ANTHROPIC_API_KEY, DATABASE_URL, CELERY/REDIS URLs
+# Add your keys: ANTHROPIC_API_KEY, APP_API_KEY
 
-# Start the worker and backend
-celery -A tasks.celery_app worker --loglevel=info
-uvicorn main:app --reload
+# Start the entire stack (FastAPI, Celery, Redis, PostgreSQL)
+docker-compose up -d
 ```
 
 API docs: http://localhost:8000/docs

@@ -174,7 +174,8 @@ def get_job_status(
 def export_n8n_workflow(
     project_id: UUID,
     request: Request,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    api_key: str = Depends(get_api_key)
 ):
     """
     Generates a valid n8n workflow JSON that recreates the automation.
